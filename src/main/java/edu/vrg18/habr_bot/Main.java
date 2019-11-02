@@ -5,15 +5,16 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class Main {
 
-    //    private static final String API_URL = "http://159.69.208.196:8080/rest/";  // Адрес API
-    private static final String API_URL = "http://localhost:8080/rest/";  // Адрес API
+    private static final String API_URL = "http://159.69.208.196:8080/chat/rest/";  // Адрес API
+    //    private static final String API_URL = "http://localhost:8080/rest/";  // Адрес API
     private static final String API_USERNAME = "habrabot";
     private static final String API_PASSWORD = "hik191101";
     private static final String API_FIRSTNAME = "HabrBot";
+    private static final int MAX_NUMBER_HABR_ARTICLE = 474000;
 
     public static void main(String[] args) throws IOException, InterruptedException {
 
@@ -32,51 +33,81 @@ public class Main {
                 responseO = HttpJsonReaderWriter.writeJsonObjectToUrl(habraBot, API_URL.concat("users"));
             }
 
-            Thread.sleep(1000); // 1 сек
+            try {
+                Thread.sleep(10000);    // 10 сек
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
 
         } while (responseO.getKey() != 200);
 
+        JSONObject userJson = responseO.getValue();
         String userId = responseO.getValue().getString("id");
-        System.out.println("userId: " + userId);
+        System.out.println("user: " + userJson.get("firstName"));
 
-//        for (;;) {
+        for (; ; ) {
 
-        Pair<Integer, JSONArray> responseA = HttpJsonReaderWriter.readJsonArrayFromUrl(API_URL.concat("messages/user/").concat(userId), API_USERNAME, API_PASSWORD);
-        for (Object inMessage : responseA.getValue()) {
+            Pair<Integer, JSONArray> responseA = HttpJsonReaderWriter.readJsonArrayFromUrl(API_URL.concat("messages/user/").concat(userId), API_USERNAME, API_PASSWORD);
+            for (Object object : responseA.getValue()) {
 
-            System.out.println("Получен запрос от: " + ((JSONObject) ((JSONObject) inMessage).get("author")).get("firstName"));
-            String textMessage = habrArticle();
-            System.out.print("Статья \"" + textMessage + "\"" + " отправляется... ");
+                JSONObject inMessage = (JSONObject) object;
 
-            JSONObject outMessage = new JSONObject();
-            outMessage.put("author", userId);
-            outMessage.put("room", ((JSONObject) ((JSONObject) inMessage).get("room")).get("id"));
-            outMessage.put("text", textMessage);
-            responseO = HttpJsonReaderWriter.writeJsonObjectToUrl(outMessage, API_URL.concat("messages"));//API_USERNAME, API_PASSWORD);
+                if (((JSONObject) inMessage.get("author")).get("id").equals(userJson.get("id"))) continue;
 
-            if (responseO.getKey() == 200) {
+                System.out.println("Получен запрос от " + ((JSONObject) inMessage.get("author")).get("firstName") + ": " + inMessage.get("text"));
+                String textMessage = habrArticle();
+                System.out.print("Статья \"" + textMessage + "\"" + " отправляется... ");
 
-                System.out.println("успешно!");
+                JSONObject outMessage = new JSONObject();
+                outMessage.put("author", userJson);
+                outMessage.put("room", inMessage.get("room"));
+                outMessage.put("text", textMessage);
+                responseO = HttpJsonReaderWriter.writeJsonObjectToUrl(outMessage, API_URL.concat("messages"), API_USERNAME, API_PASSWORD);
 
-                JSONObject markMessageAsRead = new JSONObject();
-                outMessage.put("message", ((JSONObject) inMessage).get("id"));
-                outMessage.put("user", userId);
-                responseO = HttpJsonReaderWriter.writeJsonObjectToUrl(markMessageAsRead, API_URL.concat("messages/familiarized"), API_USERNAME, API_PASSWORD);
+                if (responseO.getKey() == 200) {
 
-            } else {
-                System.out.println("упс-с-с... не получилось.");
+                    System.out.println("успешно!");
+
+                    JSONObject markInMessageAsRead = new JSONObject();
+                    markInMessageAsRead.put("message", inMessage);
+                    markInMessageAsRead.put("user", userJson);
+                    HttpJsonReaderWriter.writeJsonObjectToUrl(markInMessageAsRead, API_URL.concat("messages/familiarized"), API_USERNAME, API_PASSWORD);
+
+                    JSONObject markOutMessageAsRead = new JSONObject();
+                    markOutMessageAsRead.put("message", responseO.getValue());
+                    markOutMessageAsRead.put("user", userJson);
+                    HttpJsonReaderWriter.writeJsonObjectToUrl(markOutMessageAsRead, API_URL.concat("messages/familiarized"), API_USERNAME, API_PASSWORD);
+
+                } else if (responseO.getKey() == 422) {
+                    System.out.println("хм-м-м... это уже было.");
+
+                } else {
+                    System.out.println("упс-с-с... почему-то не получилось, ошибка " + responseO.getKey().toString() + ".");
+                }
             }
+
+//            try {
+//                Thread.sleep(10000);    // 10 сек
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
         }
-
-        Thread.sleep(60000); // 1 мин
-        //        }
-
-        System.out.println(responseO.getValue());
     }
 
-    private static String habrArticle() {
+    private static String habrArticle() throws IOException, InterruptedException {
 
-        return "post472686";
+        String habrUrl;
+        do {
+//            try {
+//                Thread.sleep(10000);    // 10 сек
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
+            habrUrl = "https://habr.com/post/" + (int) (Math.random() * (MAX_NUMBER_HABR_ARTICLE) + 1) + "/";
+            System.out.print("Проверяем \"" + habrUrl + "\"" + " на существование... ");
+        } while (!HttpJsonReaderWriter.checkGetRequestFor200(habrUrl));
+        System.out.println("существует!");
+        return habrUrl;
     }
 
 }
