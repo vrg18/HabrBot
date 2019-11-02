@@ -56,7 +56,7 @@ class HttpJsonReaderWriter {
         return new Pair<>(response, result);
     }
 
-    static Pair<Integer, JSONObject> writeJsonObjectToUrl(JSONObject jsonObject, String... args) throws IOException {
+    static Pair<Integer, JSONObject> writeJsonObjectToUrl(JSONObject inJsonObject, String... args) throws IOException {
 
         HttpURLConnection conn = (HttpURLConnection) new URL(args[0]).openConnection();
         conn.setRequestMethod("POST");
@@ -73,18 +73,19 @@ class HttpJsonReaderWriter {
         conn.setDoInput(true);
 
         OutputStream os = conn.getOutputStream();
-        os.write(jsonObject.toString().getBytes("UTF-8"));
+        os.write(inJsonObject.toString().getBytes("UTF-8"));
         os.close();
 
+        JSONObject outJsonObject = null;
         int response = conn.getResponseCode();
-        if (response == 200) {
+//        if (response == 200) {
             InputStream in = new BufferedInputStream(conn.getInputStream());
             String result = IOUtils.toString(in, "UTF-8");
             in.close();
-            jsonObject = new JSONObject(result);
-        }
+            outJsonObject = new JSONObject(result);
+//        }
         conn.disconnect();
-        return new Pair<>(response, jsonObject);
+        return new Pair<>(response, outJsonObject);
     }
 
     private static String readAll(Reader rd) throws IOException {
