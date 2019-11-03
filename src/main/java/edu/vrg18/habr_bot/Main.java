@@ -5,7 +5,10 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.TimeZone;
 
 public class Main {
 
@@ -19,6 +22,9 @@ public class Main {
     public static void main(String[] args) throws IOException, InterruptedException {
 
         Pair<Integer, JSONObject> responseO;
+        long startTime = System.currentTimeMillis();
+        DateFormat format = new SimpleDateFormat("HH:mm:ss");
+        format.setTimeZone(TimeZone.getTimeZone("UTC"));
 
         do {
 
@@ -30,14 +36,10 @@ public class Main {
                 habraBot.put("newPassword", API_PASSWORD);
                 habraBot.put("firstName", API_FIRSTNAME);
                 habraBot.put("enabled", true);
-                responseO = HttpJsonReaderWriter.writeJsonObjectToUrl(habraBot, API_URL.concat("users"));
+                responseO = HttpJsonReaderWriter.writeJsonObjectToUrl("POST", habraBot, API_URL.concat("users"));
             }
 
-            try {
-                Thread.sleep(10000);    // 10 сек
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+            Thread.sleep(10000);    // 10 сек
 
         } while (responseO.getKey() != 200);
 
@@ -45,52 +47,69 @@ public class Main {
         String userId = responseO.getValue().getString("id");
         System.out.println("user: " + userJson.get("firstName"));
 
+        String uptime = null;
+        String responseOkey = null;
+
         for (; ; ) {
 
             Pair<Integer, JSONArray> responseA = HttpJsonReaderWriter.readJsonArrayFromUrl(API_URL.concat("messages/user/").concat(userId), API_USERNAME, API_PASSWORD);
-            for (Object object : responseA.getValue()) {
+            if (responseA.getKey() == 200) {
 
-                JSONObject inMessage = (JSONObject) object;
+                for (Object object : responseA.getValue()) {
 
-                if (((JSONObject) inMessage.get("author")).get("id").equals(userJson.get("id"))) continue;
+                    JSONObject inMessage = (JSONObject) object;
 
-                System.out.println("Получен запрос от " + ((JSONObject) inMessage.get("author")).get("firstName") + ": " + inMessage.get("text"));
-                String textMessage = habrArticle();
-                System.out.print("Статья \"" + textMessage + "\"" + " отправляется... ");
+                    if (((JSONObject) inMessage.get("author")).get("id").equals(userJson.get("id"))) continue;
 
-                JSONObject outMessage = new JSONObject();
-                outMessage.put("author", userJson);
-                outMessage.put("room", inMessage.get("room"));
-                outMessage.put("text", textMessage);
-                responseO = HttpJsonReaderWriter.writeJsonObjectToUrl(outMessage, API_URL.concat("messages"), API_USERNAME, API_PASSWORD);
+                    System.out.println("Получен запрос от " + ((JSONObject) inMessage.get("author")).get("firstName") + ": " + inMessage.get("text"));
+                    String textMessage = habrArticle();
+                    System.out.print("Статья \"" + textMessage + "\"" + " отправляется... ");
 
-                if (responseO.getKey() == 200) {
+                    JSONObject outMessage = new JSONObject();
+                    outMessage.put("author", userJson);
+                    outMessage.put("room", inMessage.get("room"));
+                    outMessage.put("text", textMessage);
+                    responseO = HttpJsonReaderWriter.writeJsonObjectToUrl("POST", outMessage, API_URL.concat("messages"), API_USERNAME, API_PASSWORD);
 
-                    System.out.println("успешно!");
+                    if (responseO.getKey() == 200) {
 
-                    JSONObject markInMessageAsRead = new JSONObject();
-                    markInMessageAsRead.put("message", inMessage);
-                    markInMessageAsRead.put("user", userJson);
-                    HttpJsonReaderWriter.writeJsonObjectToUrl(markInMessageAsRead, API_URL.concat("messages/familiarized"), API_USERNAME, API_PASSWORD);
+                        System.out.println("успешно!");
 
-                    JSONObject markOutMessageAsRead = new JSONObject();
-                    markOutMessageAsRead.put("message", responseO.getValue());
-                    markOutMessageAsRead.put("user", userJson);
-                    HttpJsonReaderWriter.writeJsonObjectToUrl(markOutMessageAsRead, API_URL.concat("messages/familiarized"), API_USERNAME, API_PASSWORD);
+                        JSONObject markInMessageAsRead = new JSONObject();
+                        markInMessageAsRead.put("message", inMessage);
+                        markInMessageAsRead.put("user", userJson);
+                        HttpJsonReaderWriter.writeJsonObjectToUrl("POST", markInMessageAsRead, API_URL.concat("messages/familiarized"), API_USERNAME, API_PASSWORD);
 
-                } else if (responseO.getKey() == 422) {
-                    System.out.println("хм-м-м... это уже было.");
+                        JSONObject markOutMessageAsRead = new JSONObject();
+                        markOutMessageAsRead.put("message", responseO.getValue());
+                        markOutMessageAsRead.put("user", userJson);
+                        HttpJsonReaderWriter.writeJsonObjectToUrl("POST", markOutMessageAsRead, API_URL.concat("messages/familiarized"), API_USERNAME, API_PASSWORD);
 
-                } else {
-                    System.out.println("упс-с-с... почему-то не получилось, ошибка " + responseO.getKey().toString() + ".");
+                    } else if (responseO.getKey() == 422) {
+                        System.out.println("хм-м-м... это уже было.");
+
+                    } else {
+                        System.out.println("упс-с-с... почему-то не получилось, ошибка " + responseO.getKey().toString() + ".");
+                    }
                 }
+
+                uptime = format.format(new Date(System.currentTimeMillis() - startTime));
+                userJson.put("lastName", " (up " + uptime + ")");
+                responseO = HttpJsonReaderWriter.writeJsonObjectToUrl("PUT", userJson, API_URL.concat("users"), API_USERNAME, API_PASSWORD);
+                if (responseO.getKey() == 200) {
+                    userJson = responseO.getValue();
+                }
+
+                responseOkey = responseO.getKey().toString();
+
+            } else {
+
+                uptime = format.format(new Date(System.currentTimeMillis() - startTime));
+                responseOkey = "skip";
             }
 
-//            try {
-//                Thread.sleep(10000);    // 10 сек
-//            } catch (InterruptedException e) {
-//                e.printStackTrace();
-//            }
+            System.out.print(uptime + " (" + responseA.getKey() + ", " + responseOkey + ")     \r");
+            Thread.sleep(10000);    // 10 сек
         }
     }
 
@@ -98,16 +117,11 @@ public class Main {
 
         String habrUrl;
         do {
-//            try {
-//                Thread.sleep(10000);    // 10 сек
-//            } catch (InterruptedException e) {
-//                e.printStackTrace();
-//            }
+            Thread.sleep(10000);    // 10 сек
             habrUrl = "https://habr.com/post/" + (int) (Math.random() * (MAX_NUMBER_HABR_ARTICLE) + 1) + "/";
             System.out.print("Проверяем \"" + habrUrl + "\"" + " на существование... ");
         } while (!HttpJsonReaderWriter.checkGetRequestFor200(habrUrl));
         System.out.println("существует!");
         return habrUrl;
     }
-
 }

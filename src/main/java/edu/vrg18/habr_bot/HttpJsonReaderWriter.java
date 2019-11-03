@@ -1,20 +1,17 @@
 package edu.vrg18.habr_bot;
 
 import javafx.util.Pair;
+import org.apache.commons.io.IOUtils;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.apache.commons.io.IOUtils;
 
 import java.io.BufferedInputStream;
-import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.Reader;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 
 
@@ -57,11 +54,11 @@ class HttpJsonReaderWriter {
         return new Pair<>(response, result);
     }
 
-    static Pair<Integer, JSONObject> writeJsonObjectToUrl(JSONObject jsonObject, String... args) throws IOException {
+    static Pair<Integer, JSONObject> writeJsonObjectToUrl(String httpMethod, JSONObject jsonObject, String... args) throws IOException {
 
         HttpURLConnection conn = (HttpURLConnection) new URL(args[0]).openConnection();
         conn.setConnectTimeout(10000);
-        conn.setRequestMethod("POST");
+        conn.setRequestMethod(httpMethod);
         conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
         conn.setRequestProperty("Accept", "application/json");
 
