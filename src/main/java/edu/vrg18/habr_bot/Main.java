@@ -12,8 +12,8 @@ import java.util.TimeZone;
 
 public class Main {
 
-    private static final String API_URL = "http://159.69.208.196:8080/chat/rest/";  // Адрес API
-    //    private static final String API_URL = "http://localhost:8080/rest/";  // Адрес API
+    private static final String API_URL = "http://159.69.208.196:8080/rest/";  // Адрес API
+//    private static final String API_URL = "http://localhost:8080/rest/";  // Адрес API
     private static final String API_USERNAME = "habrabot";
     private static final String API_PASSWORD = "hik191101";
     private static final String API_FIRSTNAME = "HabrBot";
@@ -117,7 +117,7 @@ public class Main {
 
         String habrUrl;
         do {
-            Thread.sleep(10000);    // 10 сек
+            Thread.sleep(1000);    // 10 сек
             habrUrl = "https://habr.com/post/" + (int) (Math.random() * (MAX_NUMBER_HABR_ARTICLE) + 1) + "/";
             System.out.print("Проверяем \"" + habrUrl + "\"" + " на существование... ");
         } while (!HttpJsonReaderWriter.checkGetRequestFor200(habrUrl));
