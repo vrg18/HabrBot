@@ -1,5 +1,6 @@
 package edu.vrg18.habr_bot;
 
+import edu.vrg18.habr_bot.util.HttpJsonReaderWriter;
 import javafx.util.Pair;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -12,8 +13,8 @@ import java.util.TimeZone;
 
 public class Main {
 
-    private static final String API_URL = "http://159.69.208.196:8080/rest/";  // Адрес API
-//    private static final String API_URL = "http://localhost:8080/rest/";  // Адрес API
+//    private static final String API_URL = "http://159.69.208.196:8080/rest/";  // Адрес API
+    private static final String API_URL = "http://localhost:8080/rest/";  // Адрес API
     private static final String API_USERNAME = "habrabot";
     private static final String API_PASSWORD = "hik191101";
     private static final String API_FIRSTNAME = "HabrBot";

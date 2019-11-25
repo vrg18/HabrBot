@@ -1,4 +1,4 @@
-package edu.vrg18.habr_bot;
+package edu.vrg18.habr_bot.util;
 
 import javafx.util.Pair;
 import org.apache.commons.io.IOUtils;
