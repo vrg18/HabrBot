@@ -2,17 +2,19 @@ package edu.vrg18.habr_bot.entity;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import lombok.Setter;
+
+import java.util.UUID;
 
 @Getter
 @Setter
 @AllArgsConstructor
-@NoArgsConstructor
 public class User {
 
+    private UUID id;
     private String userName;
-    private String firstName;
     private String newPassword;
+    private String firstName;
+    private String lastName;
     private boolean enabled;
 }

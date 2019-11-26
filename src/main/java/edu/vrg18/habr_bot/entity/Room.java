@@ -9,10 +9,7 @@ import java.util.UUID;
 @Getter
 @Setter
 @AllArgsConstructor
-public class Message {
+public class Room {
 
     private UUID id;
-    private User author;
-    private Room room;
-    private String text;
 }

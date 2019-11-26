@@ -4,15 +4,11 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.UUID;
-
 @Getter
 @Setter
 @AllArgsConstructor
-public class Message {
+public class Familiarize {
 
-    private UUID id;
-    private User author;
-    private Room room;
-    private String text;
+    private Message message;
+    private User user;
 }

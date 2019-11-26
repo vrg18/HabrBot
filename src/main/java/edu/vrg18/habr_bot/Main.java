@@ -1,115 +1,137 @@
 package edu.vrg18.habr_bot;
 
-import edu.vrg18.habr_bot.util.HttpJsonReaderWriter;
+import edu.vrg18.habr_bot.entity.Familiarize;
+import edu.vrg18.habr_bot.entity.Message;
+import edu.vrg18.habr_bot.entity.User;
+import edu.vrg18.habr_bot.service.HttpReaderWriterService;
 import javafx.util.Pair;
-import org.json.JSONArray;
-import org.json.JSONObject;
 
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 import java.util.TimeZone;
+import java.util.logging.LogManager;
+import java.util.logging.Logger;
 
 public class Main {
 
-//    private static final String API_URL = "http://159.69.208.196:8080/rest/";  // Адрес API
+    private static Logger LOGGER;
+
+    static {
+        try(FileInputStream ins = new FileInputStream("./src/main/resources/logging.properties")) {
+            LogManager.getLogManager().readConfiguration(ins);
+            LOGGER = Logger.getLogger(Main.class.getName());
+        } catch (Exception ignore){
+            ignore.printStackTrace();
+        }
+    }
+
+    //    private static final String API_URL = "http://159.69.208.196:8080/rest/";  // Адрес API
     private static final String API_URL = "http://localhost:8080/rest/";  // Адрес API
     private static final String API_USERNAME = "habrabot";
     private static final String API_PASSWORD = "hik191101";
     private static final String API_FIRSTNAME = "HabrBot";
-    private static final int MAX_NUMBER_HABR_ARTICLE = 474000;
+    private static final int MAX_NUMBER_HABR_ARTICLE = 477000;
 
     public static void main(String[] args) throws IOException, InterruptedException {
 
-        Pair<Integer, JSONObject> responseO;
+        Pair<Integer, Object> responseObject;
         long startTime = System.currentTimeMillis();
         DateFormat format = new SimpleDateFormat("HH:mm:ss");
         format.setTimeZone(TimeZone.getTimeZone("UTC"));
 
         do {
 
-            responseO = HttpJsonReaderWriter.readJsonObjectFromUrl(API_URL.concat("users/name/").concat(API_USERNAME));
+            responseObject = HttpReaderWriterService.readObjectFromUrl(
+                    User.class,
+                    API_URL.concat("users/name/").concat(API_USERNAME));
 
-            if (responseO.getKey() == 404) {
-                JSONObject habraBot = new JSONObject();
-                habraBot.put("userName", API_USERNAME);
-                habraBot.put("newPassword", API_PASSWORD);
-                habraBot.put("firstName", API_FIRSTNAME);
-                habraBot.put("enabled", true);
-                responseO = HttpJsonReaderWriter.writeJsonObjectToUrl("POST", habraBot, API_URL.concat("users"));
+            if (responseObject.getKey() == 404) {
+                User habraBot = new User(null, API_USERNAME, API_PASSWORD, API_FIRSTNAME, null, true);
+                responseObject =
+                        HttpReaderWriterService.writeObjectToUrl("POST", habraBot, API_URL.concat("users"));
             }
 
             Thread.sleep(10000);    // 10 сек
 
-        } while (responseO.getKey() != 200);
+        } while (responseObject.getKey() != 200);
 
-        JSONObject userJson = responseO.getValue();
-        String userId = responseO.getValue().getString("id");
-        System.out.println("user: " + userJson.get("firstName"));
+        User habraBot = (User) responseObject.getValue();
+        LOGGER.info("User: " + habraBot.getFirstName());
 
         String uptime = null;
-        String responseOkey = null;
+        int responseObjectKey;
 
         for (; ; ) {
 
-            Pair<Integer, JSONArray> responseA = HttpJsonReaderWriter.readJsonArrayFromUrl(API_URL.concat("messages/user/").concat(userId), API_USERNAME, API_PASSWORD);
-            if (responseA.getKey() == 200) {
+            Pair<Integer, List<?>> responseList = HttpReaderWriterService.readListFromUrl(
+                            Message.class,
+                            API_URL.concat("messages/user/").concat(habraBot.getId().toString()),
+                            API_USERNAME,
+                            API_PASSWORD);
 
-                for (Object object : responseA.getValue()) {
+            if (responseList.getKey() == 200) {
 
-                    JSONObject inMessage = (JSONObject) object;
+                for (Object inObject : responseList.getValue()) {
 
-                    if (((JSONObject) inMessage.get("author")).get("id").equals(userJson.get("id"))) continue;
+                    Message inMessage = (Message) inObject;
 
-                    System.out.println("Получен запрос от " + ((JSONObject) inMessage.get("author")).get("firstName") + ": " + inMessage.get("text"));
-                    String textMessage = habrArticle();
-                    System.out.print("Статья \"" + textMessage + "\"" + " отправляется... ");
+                    if (inMessage.getAuthor().getId().equals(habraBot.getId())) continue;
 
-                    JSONObject outMessage = new JSONObject();
-                    outMessage.put("author", userJson);
-                    outMessage.put("room", inMessage.get("room"));
-                    outMessage.put("text", textMessage);
-                    responseO = HttpJsonReaderWriter.writeJsonObjectToUrl("POST", outMessage, API_URL.concat("messages"), API_USERNAME, API_PASSWORD);
+                    LOGGER.info("Получен запрос от " + inMessage.getAuthor().getFirstName() + ": " + inMessage.getText());
+                    String textOutMessage = habrArticle();
+                    LOGGER.info("Статья \"" + textOutMessage + "\"" + " отправляется... ");
 
-                    if (responseO.getKey() == 200) {
+                    Message outMessage = new Message(null, habraBot, inMessage.getRoom(), textOutMessage);
+                    responseObject = HttpReaderWriterService.writeObjectToUrl(
+                            "POST", outMessage, API_URL.concat("messages"), API_USERNAME, API_PASSWORD);
 
-                        System.out.println("успешно!");
+                    if (responseObject.getKey() == 200) {
 
-                        JSONObject markInMessageAsRead = new JSONObject();
-                        markInMessageAsRead.put("message", inMessage);
-                        markInMessageAsRead.put("user", userJson);
-                        HttpJsonReaderWriter.writeJsonObjectToUrl("POST", markInMessageAsRead, API_URL.concat("messages/familiarized"), API_USERNAME, API_PASSWORD);
+                        outMessage = (Message) responseObject.getValue();
+                        LOGGER.info("успешно!");
 
-                        JSONObject markOutMessageAsRead = new JSONObject();
-                        markOutMessageAsRead.put("message", responseO.getValue());
-                        markOutMessageAsRead.put("user", userJson);
-                        HttpJsonReaderWriter.writeJsonObjectToUrl("POST", markOutMessageAsRead, API_URL.concat("messages/familiarized"), API_USERNAME, API_PASSWORD);
+                        Familiarize markInMessageAsRead = new Familiarize(inMessage, habraBot);
+                        HttpReaderWriterService.writeObjectToUrl("POST", markInMessageAsRead,
+                                API_URL.concat("messages/familiarized"), API_USERNAME, API_PASSWORD);
 
-                    } else if (responseO.getKey() == 422) {
-                        System.out.println("хм-м-м... это уже было.");
+                        Familiarize markOutMessageAsRead = new Familiarize(outMessage, habraBot);
+                        HttpReaderWriterService.writeObjectToUrl("POST", markOutMessageAsRead,
+                                API_URL.concat("messages/familiarized"), API_USERNAME, API_PASSWORD);
+
+                    } else if (responseObject.getKey() == 422) {
+                        LOGGER.info("хм-м-м... это уже было.");
 
                     } else {
-                        System.out.println("упс-с-с... почему-то не получилось, ошибка " + responseO.getKey().toString() + ".");
+                        LOGGER.info("упс-с-с... почему-то не получилось, ошибка " +
+                                responseObject.getKey().toString() + ".");
                     }
                 }
 
                 uptime = format.format(new Date(System.currentTimeMillis() - startTime));
-                userJson.put("lastName", " (up " + uptime + ")");
-                responseO = HttpJsonReaderWriter.writeJsonObjectToUrl("PUT", userJson, API_URL.concat("users"), API_USERNAME, API_PASSWORD);
-                if (responseO.getKey() == 200) {
-                    userJson = responseO.getValue();
+                habraBot.setLastName(" (up " + uptime + ")");
+                responseObject = HttpReaderWriterService.writeObjectToUrl
+                        ("PUT", habraBot, API_URL.concat("users"), API_USERNAME, API_PASSWORD);
+                if (responseObject.getKey() == 200) {
+                    habraBot = (User) responseObject.getValue();
                 }
 
-                responseOkey = responseO.getKey().toString();
+                responseObjectKey = responseObject.getKey();
 
             } else {
 
                 uptime = format.format(new Date(System.currentTimeMillis() - startTime));
-                responseOkey = "skip";
+                responseObjectKey = 0;
             }
 
-            System.out.print(uptime + " (" + responseA.getKey() + ", " + responseOkey + ")     \r");
+            if (responseList.getKey() != 200 || responseObjectKey != 200) {
+                LOGGER.warning("uptime: " + uptime + ", errorGetListMessage: " +
+                        responseList.getKey() + ", errorLastResponse: " + responseObjectKey + ")");
+            }
+
             Thread.sleep(10000);    // 10 сек
         }
     }
@@ -120,9 +142,9 @@ public class Main {
         do {
             Thread.sleep(1000);    // 10 сек
             habrUrl = "https://habr.com/post/" + (int) (Math.random() * (MAX_NUMBER_HABR_ARTICLE) + 1) + "/";
-            System.out.print("Проверяем \"" + habrUrl + "\"" + " на существование... ");
-        } while (!HttpJsonReaderWriter.checkGetRequestFor200(habrUrl));
-        System.out.println("существует!");
+            LOGGER.info("Проверяем \"" + habrUrl + "\"" + " на существование... ");
+        } while (!HttpReaderWriterService.checkGetRequestFor200(habrUrl));
+        LOGGER.info("существует!");
         return habrUrl;
     }
 }
